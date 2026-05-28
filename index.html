@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>STICK WAR: LEGACY</title>
+
+<!-- Ссылка на манифест для приложения (PWA) -->
+<link rel="manifest" href="manifest.json">
+
+<style>
+    body { margin: 0; background: #0b1d28; color: #fff; font-family: 'Arial', sans-serif; text-align: center; user-select: none; overflow: hidden; }
+    .screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; background: #0b1d28; }
+    .hidden { display: none !important; }
+    
+    .ui { display: flex; justify-content: space-around; align-items: center; background: rgba(0,0,0,0.8); padding: 5px; color: #ffd700; font-weight: bold; font-size: 13px; border-bottom: 2px solid #555; }
+    .ui-block { text-align: center; }
+    
+    .btn-container { display: flex; flex-direction: column; align-items: center; padding: 5px; gap: 5px; height: 48vh; overflow-y: auto; }
+    .game-btn { background: #37474f; color: #fff; border: 2px solid #b0bec5; padding: 10px; border-radius: 8px; font-weight: bold; width: 95%; font-size: 14px; cursor: pointer; text-shadow: 1px 1px 2px #000; }
+    .game-btn.green-border { border-color: #4caf50; }
+    .game-btn.double-border { border: 3px double #fff; }
+    
+    canvas { border: 2px solid #fff; margin-top: 2px; background: linear-gradient(#1a2a6c, #b21f1f, #fdbb2d); width: 100%; max-width: 700px; }
+</style>
+</head>
+<body>
+
+    <div id="licenseScreen" class="screen">
+        <h1 style="color: #ff003c; font-size: 36px;">STICK WAR: LEGACY</h1>
+        <p>Developed by: <b>Mita5079</b></p>
+        <button onclick="document.getElementById('licenseScreen').classList.add('hidden'); document.getElementById('menuScreen').classList.remove('hidden');" style="background:#00ff41; color:#000; padding: 15px 40px; border: none; border-radius: 30px; font-weight: bold; font-size: 18px;">
+            PLAY AS Mita5079
+        </button>
+    </div>
+
+    <div id="menuScreen" class="screen hidden">
+        <h1 style="color: #00f2fe;">DIFFICULTY</h1>
+        <button class="game-btn" style="border-color:#00e5ff; color:#00e5ff;" onclick="startGame('tutorial')">ОБУЧЕНИЕ 🎓</button>
+        <button class="game-btn" onclick="startGame('easy')">ЛЕГКИЙ 🟢</button>
+        <button class="game-btn" onclick="startGame('hard')">СЛОЖНЫЙ 🟠</button>
+        <button class="game-btn" onclick="startGame('nightmare')">КОШМАР 🔥</button>
+        <button class="game-btn" style="border-color:#ff00ff; color:#ff00ff;" onclick="startGame('impossible')">НЕВОЗМОЖНЫЙ ☠️</button>
+    </div>
+
+    <div id="game" class="hidden">
+        <div class="ui">
+            <div class="ui-block">💰 <span id="gold">0</span> | ⛏️ <span id="minerCount">0</span>/4<br>ХП: <span id="php">0</span></div>
+            <div class="ui-block" id="diffDisplay" style="color: #ff3333;">УРОВЕНЬ</div>
+            <div class="ui-block">🚨 БОТ 💰 <span id="botGold">0</span><br>ХП: <span id="ehp">0</span></div>
+        </div>
+        
+        <canvas id="cvs" width="700" height="250"></canvas>
+        
+        <div class="btn-container">
+            <button class="game-btn" onclick="spawn('miner')">⛏️ Шахтер (150💰)</button>
+            <button class="game-btn green-border" onclick="spawn('warrior')">⚔️ Лютый Мечник (250💰)</button>
+            <button class="game-btn double-border" onclick="spawn('archer')">🏹 Лучник (300💰)</button>
+            <button class="game-btn double-border" onclick="spawn('gaiter')">🛡️ Гейти (1000💰)</button>
+            <button class="game-btn" style="border-color:#4caf50;" onclick="spawn('giant')">🧟 Зомби Гигант (1500💰)</button>
+        </div>
+    </div>
+
+<script>
+    const cvs = document.getElementById('cvs'), ctx = cvs.getContext('2d');
+    let g = 0, botGold = 0, playerHP = 0, enemyHP = 0, maxEHP = 0, diff = '';
+    let units = [], eUnits = [], active = false;
+    let pMiners = 0, bMiners = 0;
+    let bossActive = false;
+    let frameCount = 0;
+    let barricadeHP = 3000;
+
+    function startGame(d) {
+        diff = d;
+        bossActive = false;
+        barricadeHP = 3000;
+        units = []; eUnits = []; pMiners = 0; bMiners = 0; frameCount = 0;
+        
+        if(d === 'tutorial') { g = 300; botGold = 0; playerHP = 2000; enemyHP = 1000; document.getElementById('diffDisplay').innerText = 'ОБУЧЕНИЕ'; }
+        else if(d === 'easy') { g = 500; botGold = 100; playerHP = 2000; enemyHP = 1500; document.getElementById('diffDisplay').innerText = 'ЛЕГКИЙ'; }
+        else if(d === 'hard') { g = 500; botGold = 300; playerHP = 1500; enemyHP = 1500; document.getElementById('diffDisplay').innerText = 'СЛОЖНЫЙ'; }
+        else if(d === 'nightmare') { g = 300; botGold = 500; playerHP = 1000; enemyHP = 2000; document.getElementById('diffDisplay').innerText = 'КОШМАР'; }
+        else if(d === 'impossible') { g = 200; botGold = 1000; playerHP = 500; enemyHP = 3000; document.getElementById('diffDisplay').innerText = 'НЕВОЗМОЖНЫЙ'; }
+        
+        maxEHP = enemyHP;
+        document.getElementById('menuScreen').classList.add('hidden');
+        document.getElementById('game').classList.remove('hidden');
+        active = true;
+        loop();
+    }
+
+    function createUnit(type, team, xPos, isZombie = false, isHypno = false) {
+        let hp = 100, dmg = 1, range = 25, speed = 1.2;
+        if(type === 'giant') { hp = 1200; dmg = 4; range = 50; speed = 0.4; }
+        if(type === 'gaiter') { hp = 600; dmg = 0.5; speed = 1.5; }
+        if(type === 'archer') { hp = 80; dmg = 1; range = 150; }
+        if(type === 'warrior') { hp = 150; dmg = 1.5; }
+        if(type === 'hypno') { hp = 300; dmg = 2; speed = 0.8; }
+        if(type === 'hound') { hp = 90; dmg = 3; speed = 2.5; }
+        if(type === 'boss') { hp = 5000; dmg = 10; range = 60; speed = 0.2; }
+
+        return { t: type, team: team, x: xPos, isZ: isZombie, isH: isHypno, hp: hp, maxHp: hp, dmg: dmg, range: range, speed: speed, cd: 0, frozen: 0, hypnoCount: 0 };
+    }
+
+    function spawn(t) {
+        let cost = t==='miner'?150 : t==='warrior'?250 : t==='archer'?300 : t==='gaiter'?1000 : 1500;
+        if (g >= cost) {
+            if (t === 'miner' && pMiners >= 4) return;
+            if (t === 'miner') pMiners++;
+            g -= cost; 
+            units.push(createUnit(t, 1, 40));
+        }
+    }
+
+    function drawStickman(u, color) {
+        ctx.save();
+        ctx.translate(u.x, 200); 
+        
+        let s = 1;
+        if (u.t === 'giant') s = 2.5; 
+        if (u.t === 'gaiter') s = 0.6; 
+        if (u.t === 'boss') s = 3.5;
+        if (u.t === 'hound') { s = 0.8; ctx.scale(1.5, 0.8); }
+        
+        ctx.scale(s, s);
+        
+        if (u.frozen > 0) { ctx.fillStyle = 'rgba(0, 255, 255, 0.6)'; ctx.fillRect(-15, -40, 30, 45); }
+
+        ctx.strokeStyle = u.isZ ? '#4caf50' : u.isH ? '#e040fb' : (u.t === 'boss' ? '#000' : color); 
+        if(u.t === 'hypno') ctx.strokeStyle = '#e040fb';
+        if(u.t === 'hound') ctx.strokeStyle = '#ff0000';
+        
+        ctx.lineWidth = u.t === 'boss' ? 3 : 2;
+        ctx.beginPath();
+        ctx.arc(0, -22, 4, 0, Math.PI * 2); 
+        ctx.moveTo(0, -18); ctx.lineTo(0, -8);   
+        ctx.moveTo(0, -8); ctx.lineTo(-6, 0);    
+        ctx.moveTo(0, -8); ctx.lineTo(6, 0);    
+        ctx.moveTo(0, -14); ctx.lineTo(-8, -9); 
+        ctx.moveTo(0, -14); ctx.lineTo(8, -9); 
+        ctx.stroke();
+
+        if(u.t === 'boss') { ctx.fillStyle='red'; ctx.fillRect(-2, -24, 2, 2); ctx.fillRect(2, -24, 2, 2); }
+
+        ctx.fillStyle = '#fff'; ctx.font = '10px Arial';
+        let ico = u.t==='miner'?'⛏️': u.t==='warrior'?'⚔️': u.t==='archer'?'🏹': u.t==='gaiter'?'🛡️': u.t==='giant'?'🧟': u.t==='hypno'?'👁️': u.t==='hound'?'🐺':'💀';
+        ctx.fillText(ico, -6, -32);
+        
+        ctx.restore();
+    }
+
+    function loop() {
+        if(!active) return;
+        frameCount++;
+        ctx.clearRect(0, 0, 700, 250);
+
+        ctx.fillStyle='#3e2723'; ctx.fillRect(0, 200, 700, 50);
+
+        ctx.fillStyle='#ffd700'; 
+        for(let i=0; i<4; i++) { ctx.beginPath(); ctx.arc(100 + i*30, 200, 10, Math.PI, 0); ctx.fill(); }
+        for(let i=0; i<4; i++) { ctx.beginPath(); ctx.arc(600 - i*30, 200, 10, Math.PI, 0); ctx.fill(); }
+        
+        ctx.fillStyle='#1976d2'; ctx.fillRect(0, 100, 40, 100);
+        ctx.fillStyle='#d32f2f'; ctx.fillRect(660, 100, 40, 100);
+        
+        if (barricadeHP > 0) {
+            ctx.fillStyle = '#5d4037'; 
+            ctx.fillRect(340, 120, 20, 80);
+            ctx.fillStyle = '#fff'; ctx.font = '12px Arial';
+            ctx.fillText(Math.floor(barricadeHP) + ' HP', 330, 110);
+            ctx.fillText('БАРРИКАДА', 320, 95);
+        }
+
+        document.getElementById('php').innerText = Math.floor(playerHP);
+        document.getElementById('ehp').innerText = Math.floor(enemyHP);
+        document.getElementById('gold').innerText = Math.floor(g);
+        document.getElementById('minerCount').innerText = pMiners;
+        document.getElementById('botGold').innerText = Math.floor(botGold);
+
+        if (diff === 'tutorial') {
+            ctx.fillStyle = '#00ffff'; ctx.font = 'bold 16px Arial';
+            let tutText = "";
+            if (pMiners === 0) tutText = "ШАГ 1: Купи Шахтера (150💰), чтобы добывать золото!";
+            else if (g < 250 && units.filter(u=>u.t!=='miner').length === 0) tutText = "ШАГ 2: Жди. Шахтер добывает золото. Накопи 250💰.";
+            else if (units.filter(u=>u.t!=='miner').length === 0) tutText = "ШАГ 3: Отлично! Теперь купи Лютого Мечника ⚔️.";
+            else if (barricadeHP > 0) tutText = "ШАГ 4: Твой юнит пойдет ломать Баррикаду по центру. Развивай армию!";
+            else tutText = "ШАГ 5: Баррикада пала! Уничтожь базу врага! Спамь юнитов!";
+            ctx.fillText(tutText, 150, 40);
+            if (barricadeHP > 0) botGold = 0;
+        }
+
+        if(bossActive) {
+            ctx.fillStyle = '#000'; ctx.fillRect(200, 20, 300, 15);
+            ctx.fillStyle = '#9c27b0'; ctx.fillRect(200, 20, (enemyHP/5000)*300, 15);
+            ctx.fillStyle = '#fff'; ctx.fillText("ХРАНИТЕЛЬ", 320, 32);
+        }
+
+        let aiSpeed = diff === 'easy' ? 120 : 40; 
+        if (frameCount % aiSpeed === 0 && !bossActive) {
+            let pAttacking = units.some(u => u.t !== 'miner' && u.x > 350);
+            if (bMiners < 4 && botGold >= 150) {
+                botGold -= 150; bMiners++; eUnits.push(createUnit('miner', 2, 650));
+            } else if (pAttacking || botGold >= 600 || (eUnits.length < 3 && diff !== 'easy')) {
+                if (botGold >= 1500) { eUnits.push(createUnit('giant', 2, 650)); botGold -= 1500; }
+                else if (botGold >= 1000) { eUnits.push(createUnit('gaiter', 2, 650)); botGold -= 1000; }
+                else if (botGold >= 300 && Math.random() > 0.4) { eUnits.push(createUnit('archer', 2, 650)); botGold -= 300; }
+                else if (botGold >= 250) { eUnits.push(createUnit('warrior', 2, 650)); botGold -= 250; }
+            }
+        }
+
+        if (diff === 'impossible' && frameCount % 3600 === 0 && !bossActive) {
+            if (Math.random() <= 0.85) eUnits.push(createUnit('hound', 2, 650));
+            else eUnits.push(createUnit('hypno', 2, 650));
+        }
+
+        if (bossActive && frameCount % 600 === 0) {
+            let boss = eUnits.find(u => u.t === 'boss');
+            if(boss && boss.frozen <= 0) {
+                units.forEach(u => { u.hp -= 30; u.x -= 40; }); 
+            }
+        }
+
+        function processUnits(myArr, enArr, dir) {
+            myArr.forEach(u => {
+                if (u.frozen > 0) { u.frozen--; drawStickman(u, dir===1?'#fff':'#ff3333'); return; }
+                if (u.cd > 0) u.cd--;
+
+                if (u.t === 'miner') {
+                    let targetX = dir === 1 ? 145 : 555;
+                    if (Math.abs(u.x - targetX) > 10) u.x += (targetX > u.x ? 1 : -1) * u.speed;
+                    else if (Math.random() < 0.02) {
+                        let mineRate = diff === 'nightmare' && dir === -1 ? 20 : diff === 'easy' && dir === -1 ? 5 : 15;
+                        if (dir === 1) g += mineRate; else botGold += mineRate;
+                    }
+                } else {
+                    let target = null, dist = 999;
+                    
+                    enArr.forEach(e => {
+                        let crossBarricade = barricadeHP > 0 && ((u.x < 350 && e.x > 350) || (u.x > 350 && e.x < 350));
+                        if (!crossBarricade) {
+                            let d = Math.abs(u.x - e.x);
+                            if (d <= u.range && ((dir===1 && e.x > u.x) || (dir===-1 && e.x < u.x))) {
+                                if (d < dist) { dist = d; target = e; }
+                            }
+                        }
+                    });
+
+                    if (!target && barricadeHP > 0) {
+                        let bDist = Math.abs(u.x - 350);
+                        if (bDist <= u.range + 5 && ((dir===1 && u.x <= 350) || (dir===-1 && u.x >= 350))) {
+                            target = 'barricade';
+                        }
+                    }
+
+                    if (!target && barricadeHP <= 0) {
+                        if (dir === 1 && 660 - u.x <= u.range) target = 'ecastle';
+                        else if (dir === -1 && u.x - 40 <= u.range) target = 'pcastle';
+                    }
+
+                    if (target) {
+                        if (target === 'barricade') {
+                            barricadeHP -= u.dmg; 
+                        }
+                        else if (u.t === 'gaiter' && u.cd <= 0 && typeof target === 'object') {
+                            target.frozen = target.t === 'boss' ? 600 : 300; u.cd = 2400;
+                        }
+                        else if (u.t === 'hypno' && u.cd <= 0 && typeof target === 'object') {
+                            u.cd = 900; 
+                            if(Math.random() <= 0.25) enArr.forEach(e => { if(Math.abs(e.x - u.x) <= 150) e.frozen = 300; });
+                            let hypnoChance = u.hypnoCount === 0 ? 1.0 : u.hypnoCount === 1 ? 0.25 : u.hypnoCount === 2 ? 0.05 : 0;
+                            if(Math.random() <= hypnoChance && target.t !== 'giant' && target.t !== 'boss') {
+                                target.team = dir; target.isH = true; u.hypnoCount++;
+                            } else { target.hp -= u.dmg; }
+                        } else {
+                            let finalDmg = u.dmg;
+                            if(typeof target === 'object' && target.t === 'boss' && target.frozen > 0 && u.t === 'archer') finalDmg *= 3;
+
+                            if (target === 'ecastle') {
+                                enemyHP -= finalDmg;
+                                if(diff === 'impossible' && enemyHP <= 0 && !bossActive) {
+                                    bossActive = true; enemyHP = 5000; eUnits = [createUnit('boss', 2, 620)];
+                                }
+                            }
+                            else if (target === 'pcastle') playerHP -= finalDmg;
+                            else if (typeof target === 'object') { target.hp -= finalDmg; target.lastAtt = u; }
+                        }
+                    } else {
+                        let nextX = u.x + (dir * u.speed);
+                        let blocked = barricadeHP > 0 && ((dir === 1 && nextX >= 350 - u.range) || (dir === -1 && nextX <= 350 + u.range));
+                        if (!blocked) u.x += dir * u.speed;
+                    }
+                }
+                drawStickman(u, dir===1 ? '#ffffff' : '#ff3333');
+            });
+        }
+
+        processUnits(units, eUnits, 1);
+        processUnits(eUnits, units, -1);
+
+        let newZombies = [];
+        function filterDead(arr, isPlayer) {
+            return arr.filter(u => {
+                if (u.hp <= 0) {
+                    if (u.t === 'miner') { if (isPlayer) pMiners--; else bMiners--; }
+                    if (u.t === 'hypno') {
+                        let enemyArray = isPlayer ? eUnits : units;
+                        enemyArray.forEach(e => {
+                            if(Math.abs(e.x - u.x) < 50 && e.t !== 'giant' && e.t !== 'boss') { e.isH = true; e.team = u.team; }
+                        });
+                    }
+                    if (u.lastAtt && u.lastAtt.t === 'giant' && u.t !== 'boss') {
+                        if (Math.random() <= 0.05) newZombies.push(createUnit(u.t, isPlayer ? 2 : 1, u.x, true));
+                    }
+                    return false;
+                }
+                if(isPlayer && u.isH && u.team === 2) { eUnits.push(u); return false; }
+                if(!isPlayer && u.isH && u.team === 1) { units.push(u); return false; }
+                return true;
+            });
+        }
+
+        units = filterDead(units, true);
+        eUnits = filterDead(eUnits, false);
+        newZombies.forEach(z => { if (z.team === 1) units.push(z); else eUnits.push(z); });
+
+        if (playerHP <= 0) { alert("БАЗА РАЗРУШЕНА! ТЫ ПРОИГРАЛ."); location.reload(); return; }
+        if (enemyHP <= 0 && (!bossActive || (bossActive && diff === 'impossible'))) {
+            alert("ПОБЕДА! Mita5079 - ЛЕГЕНДА!"); location.reload(); return; }
+
+        requestAnimationFrame(loop);
+    }
+
+    // --- КОД ДЛЯ РАБОТЫ PWA (ПРЕВРАЩЕНИЯ В ПРИЛОЖЕНИЕ) ---
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js');
+    }
+</script>
+</body>
+  </html>
+  
