@@ -2,7 +2,7 @@
   "name": "STICK WAR: LEGACY",
   "short_name": "STICK WAR",
   "start_url": "index.html",
-  "display": "fullscreen",
+  "display": "standalone",
   "background_color": "#0b1d28",
   "theme_color": "#0b1d28"
 }
